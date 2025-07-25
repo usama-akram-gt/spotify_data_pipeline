@@ -1,0 +1,165 @@
+version: 2
+
+sources:
+  - name: raw
+    database: spotify_data
+    schema: raw
+    tables:
+      - name: users
+        description: Raw user data including demographic information
+        columns:
+          - name: user_id
+            description: Unique identifier for the user
+            tests:
+              - unique
+              - not_null
+          - name: username
+            description: User's username
+            tests:
+              - not_null
+          - name: country
+            description: User's country code (ISO)
+            tests:
+              - not_null
+
+      - name: artists
+        description: Information about music artists
+        columns:
+          - name: artist_id
+            description: Unique identifier for the artist
+            tests:
+              - unique
+              - not_null
+          - name: name
+            description: Artist name
+            tests:
+              - not_null
+
+      - name: albums
+        description: Information about music albums
+        columns:
+          - name: album_id
+            description: Unique identifier for the album
+            tests:
+              - unique
+              - not_null
+          - name: name
+            description: Album name
+            tests:
+              - not_null
+          - name: artist_id
+            description: Reference to the artist
+            tests:
+              - not_null
+              - relationships:
+                  to: source('raw', 'artists')
+                  field: artist_id
+
+      - name: tracks
+        description: Information about music tracks
+        columns:
+          - name: track_id
+            description: Unique identifier for the track
+            tests:
+              - unique
+              - not_null
+          - name: name
+            description: Track name
+            tests:
+              - not_null
+          - name: album_id
+            description: Reference to the album
+            tests:
+              - not_null
+              - relationships:
+                  to: source('raw', 'albums')
+                  field: album_id
+          - name: artist_id
+            description: Reference to the artist
+            tests:
+              - not_null
+              - relationships:
+                  to: source('raw', 'artists')
+                  field: artist_id
+
+      - name: streaming_history
+        description: User listening streaming history events
+        columns:
+          - name: id
+            description: Unique identifier for the streaming event
+            tests:
+              - unique
+              - not_null
+          - name: user_id
+            description: Reference to the user
+            tests:
+              - not_null
+              - relationships:
+                  to: source('raw', 'users')
+                  field: user_id
+          - name: track_id
+            description: Reference to the track
+            tests:
+              - not_null
+              - relationships:
+                  to: source('raw', 'tracks')
+                  field: track_id
+          - name: played_at
+            description: Timestamp when the track was played
+            tests:
+              - not_null
+          - name: ms_played
+            description: Duration of listening in milliseconds
+            tests:
+              - not_null
+
+      - name: playlists
+        description: User-created playlists
+        columns:
+          - name: playlist_id
+            description: Unique identifier for the playlist
+            tests:
+              - unique
+              - not_null
+          - name: name
+            description: Playlist name
+            tests:
+              - not_null
+          - name: user_id
+            description: Reference to the user who created the playlist
+            tests:
+              - not_null
+              - relationships:
+                  to: source('raw', 'users')
+                  field: user_id
+
+      - name: playlist_tracks
+        description: Junction table connecting playlists and tracks
+        columns:
+          - name: playlist_id
+            description: Reference to the playlist
+            tests:
+              - not_null
+              - relationships:
+                  to: source('raw', 'playlists')
+                  field: playlist_id
+          - name: track_id
+            description: Reference to the track
+            tests:
+              - not_null
+              - relationships:
+                  to: source('raw', 'tracks')
+                  field: track_id
+        
+  - name: processed
+    database: spotify_data
+    schema: processed
+    tables:
+      - name: streaming_history
+        description: Processed and enriched streaming history data
+        columns:
+          - name: id
+            description: Unique identifier
+            tests:
+              - unique
+              - not_null 

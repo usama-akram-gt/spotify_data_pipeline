@@ -1,0 +1,32 @@
+name: 'spotify_pipeline'
+version: '1.0.0'
+config-version: 2
+
+profile: 'spotify_pipeline'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+  - "logs"
+
+models:
+  spotify_pipeline:
+    materialized: view
+    staging:
+      materialized: view
+      schema: staging
+    marts:
+      materialized: table
+      schema: analytics
+      
+seeds:
+  spotify_pipeline:
+    schema: raw 

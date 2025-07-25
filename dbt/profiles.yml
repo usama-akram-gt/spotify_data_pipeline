@@ -1,0 +1,21 @@
+spotify_pipeline:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('DB_HOST', 'postgres') }}"
+      port: "{{ env_var('DB_PORT', 5432) | as_number }}"
+      user: "{{ env_var('DB_USER', 'spotify_user') }}"
+      password: "{{ env_var('DB_PASSWORD', 'spotify_password') }}"
+      dbname: "{{ env_var('DB_NAME', 'spotify_data') }}"
+      schema: analytics
+      threads: 4
+    prod:
+      type: postgres
+      host: "{{ env_var('DB_HOST', 'postgres') }}"
+      port: "{{ env_var('DB_PORT', 5432) | as_number }}"
+      user: "{{ env_var('DB_USER', 'spotify_user') }}"
+      password: "{{ env_var('DB_PASSWORD', 'spotify_password') }}"
+      dbname: "{{ env_var('DB_NAME', 'spotify_data') }}"
+      schema: analytics
+      threads: 8 
