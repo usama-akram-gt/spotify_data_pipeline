@@ -1,0 +1,8 @@
+apache-beam==2.52.0
+psycopg2-binary==2.9.9
+sqlalchemy==2.0.27
+pandas==1.5.3
+python-dotenv==1.0.0
+kafka-python==2.0.2
+minio==7.2.0
+faker==22.0.0 
