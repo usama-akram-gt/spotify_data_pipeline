@@ -1,0 +1,22 @@
+FROM sbtscala/scala-sbt:eclipse-temurin-17.0.5_8_1.9.4_2.13.12
+
+WORKDIR /app
+
+# Copy SBT build files
+COPY scripts/scio_pipelines/build.sbt scripts/scio_pipelines/
+COPY scripts/scio_pipelines/project/ scripts/scio_pipelines/project/
+
+# Copy source code
+COPY scripts/scio_pipelines/src/ scripts/scio_pipelines/src/
+
+# Set working directory to Scio pipelines
+WORKDIR /app/scripts/scio_pipelines
+
+# Create necessary directories
+RUN mkdir -p /app/data/raw /app/data/processed /app/logs
+
+# Pre-download dependencies
+RUN sbt update
+
+# Run Scio pipeline (this will be overridden by command in docker-compose)
+CMD ["sbt", "runMain com.spotify.pipeline.transforms.StreamingHistoryTransform"] 

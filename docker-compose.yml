@@ -1,0 +1,8 @@
+version: '3.8'
+
+# Network configuration
+networks:
+  spotify_network:
+    driver: bridge
+
+# Shared volumes

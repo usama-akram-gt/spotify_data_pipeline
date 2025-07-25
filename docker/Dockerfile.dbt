@@ -1,0 +1,26 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    ssh \
+    libpq-dev \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install DBT with PostgreSQL adapter
+RUN pip install --no-cache-dir dbt-core==1.5.4 dbt-postgres==1.5.4
+
+# Copy DBT project
+COPY dbt/ dbt/
+
+# Create necessary directories
+RUN mkdir -p logs
+
+# Set working directory to DBT project
+WORKDIR /app/dbt
+
+# Run DBT (this will be overridden by command in docker-compose)
+CMD ["dbt", "run", "--profiles-dir", "."] 
