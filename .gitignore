@@ -1,0 +1,82 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+spotify_pipeline_env/
+venv/
+env/
+ENV/
+
+# Docker Data
+data/airflow-db/
+data/raw/
+data/processed/
+data/analytics/
+data/tmp/
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Credentials and Environment
+.env
+.env.*
+!.env.example
+!.env.template
+*.pem
+*.key
+*.crt
+
+# Documentation (keep only essential)
+*.docx
+~$*
+
+# Build artifacts
+*.jar
+*.class
+target/
+project/target/
+
+# Terraform
+terraform/.terraform/
+terraform/terraform.tfstate*
+terraform/.terraform.lock.hcl
+terraform/tfplan
+
+# Kubernetes secrets
+k8s/secrets/
