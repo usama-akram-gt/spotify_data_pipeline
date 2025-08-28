@@ -23,9 +23,17 @@ models:
     staging:
       materialized: view
       schema: staging
+      # For Databricks, use Delta tables
+      +file_format: delta
     marts:
       materialized: table
       schema: analytics
+      # Databricks-specific configurations
+      +file_format: delta
+      +location_root: "/mnt/adls/gold"
+      +partition_by: ["date"]
+      +clustered_by: ["user_id", "track_id"]
+      +buckets: 10
       
 seeds:
   spotify_pipeline:

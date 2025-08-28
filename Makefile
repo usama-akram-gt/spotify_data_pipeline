@@ -1,10 +1,17 @@
-# Spotify Data Pipeline Makefile
+# Spotify Data Pipeline Makefile - Azure/Kubernetes Edition
 # -------------------------
 # This Makefile provides commands to setup, run, and manage the Spotify data pipeline
 
 # Environment variables
-include .env
+-include .env
+-include .env.azure
 export
+
+# Azure and Kubernetes variables
+RESOURCE_GROUP ?= spotify-pipeline-dev-rg
+LOCATION ?= eastus
+AKS_CLUSTER ?= spotify-k8s-cluster
+ACR_NAME ?= spotifypipelineacr
 
 # Variables
 DOCKER_COMPOSE = docker-compose
@@ -19,7 +26,7 @@ DATE ?= $(shell date +%Y-%m-%d)
 ENV ?= dev
 TEST_SIZE ?= tiny
 
-.PHONY: help setup-env build up down restart logs ps clean generate-data run-pipeline start-streaming stop-streaming test exec-airflow backup-db restore-db format lint run-beam-job scio-pipeline test-dev test-prod scio-build scio-run scio-test scio-assembly test-unit test-integration test-performance test-coverage dbt-run dashboard
+.PHONY: help setup-env build up down restart logs ps clean generate-data run-pipeline start-streaming stop-streaming test exec-airflow backup-db restore-db format lint run-beam-job scio-pipeline test-dev test-prod scio-build scio-run scio-test scio-assembly test-unit test-integration test-performance test-coverage dbt-run azure-login azure-setup terraform-init terraform-plan terraform-apply terraform-destroy k8s-deploy k8s-delete docker-build-all docker-push-all
 
 help: ## Display this help message
 	@echo "Spotify Data Pipeline Commands:"
@@ -65,7 +72,27 @@ help: ## Display this help message
 	@echo "  scio-run        - Run a specific Scio pipeline"
 	@echo "  scio-test       - Run Scio tests"
 	@echo "  scio-assembly   - Create Scio assembly JAR"
-	@echo "  dashboard       - Open dashboard in browser"
+	@echo ""
+	@echo "Local Development Operations:"
+	@echo "  local-setup     - Setup local environment"
+	@echo "  local-up        - Start local services (Airflow + PostgreSQL)"
+	@echo "  local-down      - Stop local services"
+	@echo "  local-pipeline  - Run complete local pipeline"
+	@echo "  local-scio      - Run Scio pipeline locally"
+	@echo "  local-dbt       - Run DBT locally"
+	@echo "  local-test      - Test local pipeline"
+	@echo ""
+	@echo "Azure & Kubernetes Operations:"
+	@echo "  azure-login     - Login to Azure"
+	@echo "  azure-setup     - Setup Azure resources with Terraform"
+	@echo "  terraform-init  - Initialize Terraform"
+	@echo "  terraform-plan  - Plan Terraform changes"
+	@echo "  terraform-apply - Apply Terraform changes"
+	@echo "  terraform-destroy - Destroy Terraform resources"
+	@echo "  k8s-deploy      - Deploy to Kubernetes"
+	@echo "  k8s-delete      - Delete Kubernetes deployment"
+	@echo "  docker-build-all - Build all Docker images"
+	@echo "  docker-push-all - Push images to ACR"
 
 setup-env: ## Setup environment files and directories
 	@echo "Setting up environment..."
@@ -246,7 +273,166 @@ dbt-run:
 	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec dbt dbt run
 	@echo "DBT models completed"
 
-# Dashboard operations
-dashboard:
-	@echo "Opening dashboard at http://localhost:8050"
-	@which open > /dev/null && open http://localhost:8050 || echo "Open http://localhost:8050 in your browser"
+# Azure & Kubernetes Operations
+azure-login: ## Login to Azure CLI
+	@echo "Logging into Azure..."
+	az login
+	az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
+
+azure-setup: terraform-init terraform-apply ## Setup complete Azure infrastructure
+	@echo "Azure infrastructure setup complete!"
+
+terraform-init: ## Initialize Terraform
+	@echo "Initializing Terraform..."
+	cd terraform && terraform init
+
+terraform-plan: ## Plan Terraform changes
+	@echo "Planning Terraform changes..."
+	cd terraform && terraform plan -var="environment=$(ENV)" -out=tfplan
+
+terraform-apply: ## Apply Terraform changes
+	@echo "Applying Terraform changes..."
+	cd terraform && terraform apply tfplan
+	@echo "Generating .env file from Terraform outputs..."
+	cd terraform && terraform output -raw env_variables_template > ../.env.generated
+	@echo "Environment variables saved to .env.generated - copy to .env"
+
+terraform-destroy: ## Destroy Terraform resources
+	@echo "Destroying Terraform resources..."
+	cd terraform && terraform destroy -var="environment=$(ENV)" -auto-approve
+
+docker-build-all: ## Build all Docker images
+	@echo "Building Scio image..."
+	docker build -f docker/Dockerfile.scio -t spotify-pipeline/scio:latest .
+	@echo "Building DBT image..."  
+	docker build -f docker/Dockerfile.dbt -t spotify-pipeline/dbt:latest .
+
+docker-push-all: docker-build-all ## Push all images to Azure Container Registry
+	@echo "Logging into ACR..."
+	az acr login --name $(ACR_NAME)
+	@echo "Tagging and pushing images..."
+	docker tag spotify-pipeline/scio:latest $(ACR_NAME).azurecr.io/spotify-pipeline/scio:latest
+	docker tag spotify-pipeline/dbt:latest $(ACR_NAME).azurecr.io/spotify-pipeline/dbt:latest
+	docker push $(ACR_NAME).azurecr.io/spotify-pipeline/scio:latest
+	docker push $(ACR_NAME).azurecr.io/spotify-pipeline/dbt:latest
+
+k8s-deploy: ## Deploy to Kubernetes
+	@echo "Deploying to Kubernetes..."
+	kubectl apply -f k8s/namespace.yaml
+	kubectl apply -f k8s/postgres.yaml
+	kubectl apply -f k8s/airflow.yaml
+	kubectl apply -f k8s/scio-job.yaml
+	@echo "Checking deployment status..."
+	kubectl get pods -n spotify-pipeline
+
+k8s-delete: ## Delete Kubernetes deployment
+	@echo "Deleting Kubernetes deployment..."
+	kubectl delete -f k8s/ --ignore-not-found=true
+	kubectl delete namespace spotify-pipeline --ignore-not-found=true
+
+# Updated pipeline commands for Azure
+scio-pipeline-azure: ## Run Scio pipeline in Azure/K8s
+	@echo "Running Scio pipeline in Kubernetes..."
+	kubectl create job --from=cronjob/scio-daily-pipeline scio-manual-run-$(shell date +%Y%m%d%H%M%S) -n spotify-pipeline
+
+dbt-run-azure: ## Run DBT in Azure/Databricks
+	@echo "Running DBT with Databricks..."
+	cd dbt && dbt run --target prod --profiles-dir .
+
+# ================================
+# LOCAL DEVELOPMENT COMMANDS
+# ================================
+
+local-setup: ## Setup local development environment
+	@echo "🏠 Setting up local development environment..."
+	@if [ ! -f .env ]; then cp .env.local .env; echo "Created .env from .env.local template"; fi
+	@mkdir -p data/{raw,processed,analytics,tmp} logs/{airflow,kafka,postgres,scio}
+	@echo "✅ Local environment setup complete!"
+	@echo "📝 Next steps:"
+	@echo "   1. Review and update .env file with your settings"
+	@echo "   2. Run 'make local-up' to start services"
+	@echo "   3. Run 'make local-pipeline' to test the pipeline"
+
+local-up: ## Start local services (Airflow + PostgreSQL + Kafka)
+	@echo "🚀 Starting local services..."
+	docker-compose --env-file .env -f docker-compose.local.yml up -d
+	@echo "⏳ Waiting for services to be ready..."
+	@sleep 30
+	@echo "✅ Local services started!"
+	@echo "🌐 Airflow UI: http://localhost:8080 (admin/admin)"
+	@echo "📊 Kafka UI: http://localhost:8081"
+	@echo "🐘 PostgreSQL Admin: http://localhost:8082 (admin@spotify.com/admin)"
+	@echo "💾 PostgreSQL Direct: localhost:5432"
+	@echo "📡 Kafka Direct: localhost:9092"
+
+local-down: ## Stop local services
+	@echo "🛑 Stopping local services..."
+	docker-compose --env-file .env -f docker-compose.local.yml down
+	@echo "✅ Local services stopped"
+
+local-status: ## Check status of local services
+	@echo "📊 Local services status:"
+	docker-compose -f docker-compose.local.yml ps
+
+local-logs: ## View logs from local services
+	@echo "📋 Viewing local service logs..."
+	docker-compose -f docker-compose.local.yml logs -f
+
+local-scio: ## Run Scio pipeline locally
+	@echo "🔧 Running local Scio pipeline..."
+	docker-compose -f docker-compose.local.yml --profile scio run --rm scio-runner bash -c "
+	cd /app && 
+	sbt 'runMain com.spotify.pipeline.transforms.LocalStreamingHistoryTransform $(shell date -d yesterday '+%Y-%m-%d')'
+	"
+
+local-dbt: ## Run DBT transformations locally
+	@echo "📊 Running DBT locally..."
+	docker-compose -f docker-compose.local.yml --profile dbt run --rm dbt-runner bash -c "
+	cd /app/dbt && 
+	dbt run --profiles-dir . --target dev
+	"
+
+local-dbt-databricks: ## Run DBT with Databricks Community Edition
+	@echo "☁️ Running DBT with Databricks Community Edition..."
+	@echo "⚠️  Make sure you have set DATABRICKS_ACCESS_TOKEN in .env"
+	docker-compose -f docker-compose.local.yml --profile dbt run --rm dbt-runner bash -c "
+	cd /app/dbt && 
+	dbt run --profiles-dir . --target databricks_community
+	"
+
+local-pipeline: ## Run complete local pipeline via Airflow
+	@echo "🚀 Triggering local pipeline in Airflow..."
+	@echo "💡 This will run the 'local_spotify_etl_pipeline' DAG"
+	docker-compose -f docker-compose.local.yml exec airflow-webserver airflow dags trigger local_spotify_etl_pipeline
+	@echo "✅ Pipeline triggered! Check progress at http://localhost:8080"
+
+local-test: ## Test local pipeline setup
+	@echo "🧪 Testing local pipeline setup..."
+	@echo "1. Checking database connection..."
+	docker-compose -f docker-compose.local.yml exec postgres psql -U $(DB_USER) -d $(DB_NAME) -c "SELECT version();"
+	@echo "2. Checking Airflow..."
+	docker-compose -f docker-compose.local.yml exec airflow-webserver airflow version
+	@echo "3. Checking data directories..."
+	@ls -la data/ || echo "No data directory found"
+	@echo "4. Checking Scio build..."
+	docker-compose -f docker-compose.local.yml --profile scio run --rm scio-runner bash -c "cd /app && sbt compile" | head -20
+	@echo "✅ Local test complete!"
+
+local-generate-data: ## Generate sample data for local testing
+	@echo "🎲 Generating sample data..."
+	docker-compose -f docker-compose.local.yml exec airflow-webserver python -c \
+		"import sys; sys.path.append('/opt/airflow/scripts'); \
+		from ingestion.generate_fake_data import SpotifyDataGenerator; \
+		db_params = {'host': 'postgres', 'port': '5432', 'database': '$(DB_NAME)', 'user': '$(DB_USER)', 'password': '$(DB_PASSWORD)'}; \
+		generator = SpotifyDataGenerator(db_params); \
+		result = generator.run_full_data_generation(scale='small'); \
+		print('Generated data:', result)"
+
+local-clean: ## Clean local data and logs
+	@echo "🧹 Cleaning local data and logs..."
+	@rm -rf data/* logs/*
+	docker-compose -f docker-compose.local.yml down -v
+	@echo "✅ Local cleanup complete!"
+
+# Quick local development workflow
+local-dev: local-setup local-up local-generate-data local-pipeline ## Complete local development setup and test

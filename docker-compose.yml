@@ -6,3 +6,14 @@ networks:
     driver: bridge
 
 # Shared volumes
+volumes:
+  postgres_data:
+    driver: local
+  airflow_logs:
+    driver: local
+  kafka_data:
+    driver: local
+  scio_build_cache:
+    driver: local
+
+services:

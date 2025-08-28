@@ -21,16 +21,38 @@ lazy val root: Project = Project(
   commonSettings,
   description := "Spotify Data Pipeline using Scio",
   libraryDependencies ++= Seq(
+    // Scio Core
     "com.spotify" %% "scio-core" % scioVersion,
     "com.spotify" %% "scio-test" % scioVersion % Test,
     "com.spotify" %% "scio-jdbc" % scioVersion,
+    "com.spotify" %% "scio-parquet" % scioVersion,
+    
+    // Apache Beam
     "org.apache.beam" % "beam-runners-direct-java" % beamVersion,
     "org.apache.beam" % "beam-runners-google-cloud-dataflow-java" % beamVersion,
-    "org.postgresql" % "postgresql" % "42.5.4",
-    "org.slf4j" % "slf4j-api" % "2.0.5",
-    "ch.qos.logback" % "logback-classic" % "1.4.7",
+    "org.apache.beam" % "beam-sdks-java-io-hadoop-file-system" % beamVersion,
+    "org.apache.beam" % "beam-sdks-java-io-parquet" % beamVersion,
+    
+    // Azure Data Lake Storage support
+    "org.apache.hadoop" % "hadoop-azure" % "3.3.6",
+    "org.apache.hadoop" % "hadoop-client" % "3.3.6",
+    "com.microsoft.azure" % "azure-storage" % "8.6.6",
+    "com.azure" % "azure-storage-file-datalake" % "12.15.0",
+    
+    // Database connectors
+    "org.postgresql" % "postgresql" % "42.6.0",
+    "com.databricks" % "databricks-jdbc" % "2.6.29",
+    
+    // Configuration and utilities
     "com.typesafe" % "config" % "1.4.2",
-    "org.scalatest" %% "scalatest" % "3.2.15" % Test
+    "com.github.pureconfig" %% "pureconfig" % "0.17.4",
+    
+    // Logging
+    "org.slf4j" % "slf4j-api" % "2.0.7",
+    "ch.qos.logback" % "logback-classic" % "1.4.8",
+    
+    // Testing
+    "org.scalatest" %% "scalatest" % "3.2.16" % Test
   ),
   
   // Assembly settings

@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """
-Spotify Data Pipeline - Apache Beam Processor
+DEPRECATED: This Python Beam pipeline has been replaced by Scio (Scala) implementation.
+See scripts/scio_pipelines/src/main/scala/com/spotify/pipeline/transforms/StreamingHistoryTransform.scala
 
-This script implements an Apache Beam pipeline to process Spotify streaming history data.
-It reads data from the raw database, applies transformations, and outputs processed data
-to the processed database or analytics tables.
+This file is kept for reference only and will be removed in future versions.
 """
 
 import os

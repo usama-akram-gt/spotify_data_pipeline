@@ -1,0 +1,171 @@
+version: '3.8'
+
+# Local Development Docker Compose
+# Run with: docker-compose -f docker-compose.local.yml up
+
+networks:
+  spotify_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  airflow_logs:
+    driver: local
+  kafka_data:
+    driver: local
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:14
+    container_name: spotify-postgres
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - spotify_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Airflow Database (separate from main DB)
+  airflow-db:
+    image: postgres:14
+    container_name: spotify-airflow-db
+    environment:
+      POSTGRES_DB: airflow
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ./data/airflow-db:/var/lib/postgresql/data
+    networks:
+      - spotify_network
+
+  # Kafka (Zookeeper + Kafka)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: spotify-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - spotify_network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: spotify-kafka
+    ports:
+      - "9092:9092"
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - spotify_network
+
+  # Airflow Webserver
+  airflow-webserver:
+    image: apache/airflow:2.8.1
+    container_name: spotify-airflow-webserver
+    depends_on:
+      - postgres
+      - airflow-db
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${DB_USER}:${DB_PASSWORD}@airflow-db:5432/airflow
+      - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=false
+      - AIRFLOW__CORE__LOAD_EXAMPLES=false
+      - AIRFLOW__API__AUTH_BACKENDS=airflow.api.auth.backend.basic_auth
+      - AIRFLOW_UID=${AIRFLOW_UID:-50000}
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./scripts:/opt/airflow/scripts
+      - ./config:/opt/airflow/config
+      - ./data:/opt/airflow/data
+      - airflow_logs:/opt/airflow/logs
+    ports:
+      - "8080:8080"
+    networks:
+      - spotify_network
+    command: >
+      bash -c "
+        pip install psycopg2-binary faker python-dotenv pandas &&
+        airflow db init &&
+        airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin &&
+        airflow webserver
+      "
+
+  # Airflow Scheduler
+  airflow-scheduler:
+    image: apache/airflow:2.8.1
+    container_name: spotify-airflow-scheduler
+    depends_on:
+      - airflow-webserver
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${DB_USER}:${DB_PASSWORD}@airflow-db:5432/airflow
+      - AIRFLOW_UID=${AIRFLOW_UID:-50000}
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./scripts:/opt/airflow/scripts
+      - ./config:/opt/airflow/config
+      - ./data:/opt/airflow/data
+      - airflow_logs:/opt/airflow/logs
+    networks:
+      - spotify_network
+    command: >
+      bash -c "
+        pip install psycopg2-binary faker python-dotenv pandas &&
+        airflow scheduler
+      "
+
+  # Note: Scio and DBT runners are disabled for now to focus on core services
+  # They can be enabled later once basic pipeline is working
+
+  # Kafka UI for monitoring
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: spotify-kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "8081:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - spotify_network
+
+  # PostgreSQL Admin UI
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: spotify-pgadmin
+    depends_on:
+      - postgres
+    ports:
+      - "8082:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@spotify.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    networks:
+      - spotify_network

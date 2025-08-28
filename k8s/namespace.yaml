@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spotify-pipeline
+  labels:
+    name: spotify-pipeline
+    environment: dev
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spotify-config
+  namespace: spotify-pipeline
+data:
+  # Database configuration
+  DB_HOST: "spotify-postgres-service"
+  DB_PORT: "5432"
+  DB_NAME: "spotify_data"
+  
+  # Kafka configuration
+  KAFKA_BOOTSTRAP_SERVERS: "kafka-service:9092"
+  
+  # Airflow configuration
+  AIRFLOW__CORE__EXECUTOR: "CeleryExecutor"
+  AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+  AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+  AIRFLOW__API__AUTH_BACKENDS: "airflow.api.auth.backend.basic_auth"
+  
+  # Azure configuration placeholders (use secrets for actual values)
+  ADLS_CONTAINER_NAME: "spotify-data"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: spotify-secrets
+  namespace: spotify-pipeline
+type: Opaque
+stringData:
+  # Database credentials
+  DB_USER: "spotify_user"
+  DB_PASSWORD: "spotify_password"
+  
+  # Azure credentials (replace with actual values)
+  ADLS_ACCOUNT_NAME: "your_adls_account"
+  ADLS_ACCOUNT_KEY: "your_adls_key"
+  AZURE_CLIENT_ID: "your_client_id"
+  AZURE_CLIENT_SECRET: "your_client_secret"
+  AZURE_TENANT_ID: "your_tenant_id"
+  
+  # Databricks credentials
+  DATABRICKS_WORKSPACE_URL: "your_workspace.databricks.azure.com"
+  DATABRICKS_ACCESS_TOKEN: "your_databricks_token"
+  DATABRICKS_WAREHOUSE_ID: "your_warehouse_id"
+  
+  # Airflow credentials
+  AIRFLOW_ADMIN_PASSWORD: "admin"

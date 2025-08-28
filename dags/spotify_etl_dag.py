@@ -105,19 +105,14 @@ generate_data = BashOperator(
     dag=dag,
 )
 
-# Task to run Apache Beam pipeline
-run_beam_pipeline = BashOperator(
-    task_id='run_beam_pipeline',
-    bash_command='echo "Running Apache Beam pipeline" && python /app/scripts/beam_pipeline.py',
+# Task to run Scio pipeline (replaces deprecated Python Beam pipeline)
+run_scio_pipeline_main = BashOperator(
+    task_id='run_scio_pipeline_main',
+    bash_command='echo "Running Scio pipeline" && cd /app/scio_pipelines && sbt "runMain com.spotify.pipeline.transforms.StreamingHistoryTransform {{ execution_date.strftime("%Y-%m-%d") }}"',
     dag=dag,
 )
 
-# Task to run Scio pipeline
-run_scio_pipeline = BashOperator(
-    task_id='run_scio_pipeline',
-    bash_command='echo "Running Scio pipeline" && cd /app/scio_pipelines && sbt "runMain com.spotify.pipeline.transforms.StreamingHistoryTransform"',
-    dag=dag,
-)
+# Remove this duplicate - already handled above
 
 # Task to record pipeline execution in monitoring table
 record_pipeline_execution = PostgresOperator(
@@ -150,10 +145,9 @@ end_pipeline = BashOperator(
     dag=dag,
 )
 
-# Set task dependencies
+# Set task dependencies - Updated for Scio-only pipeline
 start_pipeline >> generate_data
-generate_data >> [run_beam_pipeline, run_scio_pipeline]
-run_beam_pipeline >> record_pipeline_execution
-run_scio_pipeline >> record_pipeline_execution
+generate_data >> run_scio_pipeline_main
+run_scio_pipeline_main >> record_pipeline_execution
 record_pipeline_execution >> run_dbt
 run_dbt >> end_pipeline 

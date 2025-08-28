@@ -1,6 +1,7 @@
 spotify_pipeline:
   target: dev
   outputs:
+    # Local development with PostgreSQL
     dev:
       type: postgres
       host: "{{ env_var('DB_HOST', 'postgres') }}"
@@ -10,12 +11,35 @@ spotify_pipeline:
       dbname: "{{ env_var('DB_NAME', 'spotify_data') }}"
       schema: analytics
       threads: 4
+    
+    # Databricks Community Edition (optional for local testing)
+    databricks_community:
+      type: databricks
+      catalog: hive_metastore  
+      schema: default
+      host: "{{ env_var('DATABRICKS_WORKSPACE_URL', 'community.cloud.databricks.com') }}"
+      http_path: "/sql/1.0/warehouses/{{ env_var('DATABRICKS_WAREHOUSE_ID') }}"
+      token: "{{ env_var('DATABRICKS_ACCESS_TOKEN') }}"
+      threads: 2
+      connect_timeout: 60
+      connect_retries: 3
     prod:
-      type: postgres
-      host: "{{ env_var('DB_HOST', 'postgres') }}"
-      port: "{{ env_var('DB_PORT', 5432) | as_number }}"
-      user: "{{ env_var('DB_USER', 'spotify_user') }}"
-      password: "{{ env_var('DB_PASSWORD', 'spotify_password') }}"
-      dbname: "{{ env_var('DB_NAME', 'spotify_data') }}"
+      type: databricks
+      catalog: hive_metastore  
       schema: analytics
-      threads: 8 
+      host: "{{ env_var('DATABRICKS_WORKSPACE_URL') }}"
+      http_path: "/sql/1.0/warehouses/{{ env_var('DATABRICKS_WAREHOUSE_ID') }}"
+      token: "{{ env_var('DATABRICKS_ACCESS_TOKEN') }}"
+      threads: 8
+      connect_timeout: 60
+      connect_retries: 5
+    
+    # Azure Data Lake integration for staging
+    azure:
+      type: databricks
+      catalog: hive_metastore
+      schema: staging
+      host: "{{ env_var('DATABRICKS_WORKSPACE_URL') }}"
+      http_path: "/sql/1.0/warehouses/{{ env_var('DATABRICKS_WAREHOUSE_ID') }}"
+      token: "{{ env_var('DATABRICKS_ACCESS_TOKEN') }}"
+      threads: 4 

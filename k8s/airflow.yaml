@@ -1,0 +1,221 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: airflow-logs-pvc
+  namespace: spotify-pipeline
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airflow-webserver
+  namespace: spotify-pipeline
+  labels:
+    app: airflow-webserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: airflow-webserver
+  template:
+    metadata:
+      labels:
+        app: airflow-webserver
+    spec:
+      initContainers:
+      - name: airflow-init
+        image: apache/airflow:2.8.1
+        command: ["/bin/bash"]
+        args:
+          - "-c"
+          - |
+            airflow db init &&
+            airflow users create \
+              --username admin \
+              --firstname Admin \
+              --lastname User \
+              --role Admin \
+              --email admin@example.com \
+              --password $AIRFLOW_ADMIN_PASSWORD
+        envFrom:
+        - configMapRef:
+            name: spotify-config
+        - secretRef:
+            name: spotify-secrets
+        env:
+        - name: AIRFLOW__CORE__SQL_ALCHEMY_CONN
+          value: "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/airflow"
+        - name: AIRFLOW__CELERY__RESULT_BACKEND
+          value: "db+postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/airflow"
+      containers:
+      - name: airflow-webserver
+        image: apache/airflow:2.8.1
+        ports:
+        - containerPort: 8080
+        command: ["/bin/bash"]
+        args:
+          - "-c"
+          - "airflow webserver"
+        envFrom:
+        - configMapRef:
+            name: spotify-config
+        - secretRef:
+            name: spotify-secrets
+        env:
+        - name: AIRFLOW__CORE__SQL_ALCHEMY_CONN
+          value: "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/airflow"
+        - name: AIRFLOW__CELERY__RESULT_BACKEND
+          value: "db+postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/airflow"
+        volumeMounts:
+        - name: airflow-logs
+          mountPath: /opt/airflow/logs
+        - name: dags-volume
+          mountPath: /opt/airflow/dags
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+      volumes:
+      - name: airflow-logs
+        persistentVolumeClaim:
+          claimName: airflow-logs-pvc
+      - name: dags-volume
+        configMap:
+          name: airflow-dags
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: airflow-webserver-service
+  namespace: spotify-pipeline
+spec:
+  selector:
+    app: airflow-webserver
+  ports:
+  - port: 8080
+    targetPort: 8080
+  type: LoadBalancer
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airflow-scheduler
+  namespace: spotify-pipeline
+  labels:
+    app: airflow-scheduler
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: airflow-scheduler
+  template:
+    metadata:
+      labels:
+        app: airflow-scheduler
+    spec:
+      containers:
+      - name: airflow-scheduler
+        image: apache/airflow:2.8.1
+        command: ["/bin/bash"]
+        args:
+          - "-c"
+          - "airflow scheduler"
+        envFrom:
+        - configMapRef:
+            name: spotify-config
+        - secretRef:
+            name: spotify-secrets
+        env:
+        - name: AIRFLOW__CORE__SQL_ALCHEMY_CONN
+          value: "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/airflow"
+        - name: AIRFLOW__CELERY__RESULT_BACKEND
+          value: "db+postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/airflow"
+        volumeMounts:
+        - name: airflow-logs
+          mountPath: /opt/airflow/logs
+        - name: dags-volume
+          mountPath: /opt/airflow/dags
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+      volumes:
+      - name: airflow-logs
+        persistentVolumeClaim:
+          claimName: airflow-logs-pvc
+      - name: dags-volume
+        configMap:
+          name: airflow-dags
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: airflow-dags
+  namespace: spotify-pipeline
+data:
+  azure_spotify_etl_dag.py: |
+    from datetime import datetime, timedelta
+    from airflow import DAG
+    from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
+    from kubernetes.client import models as k8s
+    
+    default_args = {
+        'owner': 'data-engineering',
+        'depends_on_past': False,
+        'email_on_failure': False,
+        'email_on_retry': False,
+        'retries': 1,
+        'retry_delay': timedelta(minutes=5),
+    }
+    
+    dag = DAG(
+        'azure_spotify_etl_pipeline',
+        default_args=default_args,
+        description='Azure Spotify ETL Data Pipeline',
+        schedule_interval=timedelta(days=1),
+        start_date=datetime(2024, 1, 1),
+        catchup=False,
+        tags=['spotify', 'etl', 'azure', 'scio'],
+    )
+    
+    # Scio pipeline task
+    scio_transform_task = KubernetesPodOperator(
+        task_id='run_scio_transform',
+        name='scio-transform-pod',
+        namespace='spotify-pipeline',
+        image='spotify-pipeline/scio:latest',
+        cmds=['/bin/bash'],
+        arguments=['-c', 'cd /app && sbt "runMain com.spotify.pipeline.transforms.AzureStreamingHistoryTransform {{ ds }}"'],
+        env_vars={
+            'DB_HOST': '{{ var.value.DB_HOST }}',
+            'DB_USER': '{{ var.value.DB_USER }}',
+            'DB_PASSWORD': '{{ var.value.DB_PASSWORD }}'
+        },
+        get_logs=True,
+        dag=dag,
+    )
+    
+    # DBT task
+    dbt_transform_task = KubernetesPodOperator(
+        task_id='run_dbt_transforms',
+        name='dbt-transform-pod', 
+        namespace='spotify-pipeline',
+        image='spotify-pipeline/dbt:latest',
+        cmds=['/bin/bash'],
+        arguments=['-c', 'cd /app/dbt && dbt run --target prod'],
+        get_logs=True,
+        dag=dag,
+    )
+    
+    scio_transform_task >> dbt_transform_task
