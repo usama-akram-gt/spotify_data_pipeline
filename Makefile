@@ -98,7 +98,7 @@ setup-env: ## Setup environment files and directories
 	@echo "Setting up environment..."
 	@mkdir -p $(LOGS_DIR)/airflow $(LOGS_DIR)/kafka $(LOGS_DIR)/postgres $(LOGS_DIR)/beam $(LOGS_DIR)/scio
 	@mkdir -p $(DATA_DIR)/raw $(DATA_DIR)/processed $(DATA_DIR)/analytics
-	@mkdir -p scripts/beam_pipelines
+	@mkdir -p src/ingestion src/transformation src/airflow src/scio src/dashboard src/validation
 	@echo "Environment setup complete."
 
 build: ## Build all Docker containers
@@ -130,7 +130,7 @@ clean: ## Remove all generated data and containers
 # Data operations
 generate-data: ## Generate fake data (small, medium, large)
 	@echo "Generating fake data..."
-	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec beam-runner python /opt/beam/scripts/data_generator.py --scale $(SCALE)
+	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec beam-runner python /opt/beam/src/data_generator.py --scale $(SCALE)
 	@echo "Fake data generated with scale: $(SCALE)"
 
 run-pipeline: ## Trigger the ETL pipeline in Airflow
@@ -139,8 +139,8 @@ run-pipeline: ## Trigger the ETL pipeline in Airflow
 
 start-streaming: ## Start Kafka streaming (producer and consumer)
 	@echo "Starting Kafka streaming..."
-	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec -d airflow-webserver python /opt/airflow/scripts/kafka_stream_producer.py --duration $(DURATION) --rate $(RATE)
-	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec -d airflow-webserver python /opt/airflow/scripts/kafka_stream_consumer.py
+	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec -d airflow-webserver python /opt/airflow/src/kafka_stream_producer.py --duration $(DURATION) --rate $(RATE)
+	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec -d airflow-webserver python /opt/airflow/src/kafka_stream_consumer.py
 	@echo "Streaming started. Producer will run for $(DURATION) seconds at $(RATE) events/second."
 
 stop-streaming: ## Stop Kafka streaming processes
@@ -151,7 +151,7 @@ stop-streaming: ## Stop Kafka streaming processes
 
 run-beam-job: ## Run an Apache Beam pipeline
 	@echo "Running Apache Beam pipeline..."
-	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec beam-runner python /opt/beam/scripts/beam_pipelines/$(PIPELINE).py --date $(DATE)
+	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec beam-runner python /opt/beam/src/beam_pipelines/$(PIPELINE).py --date $(DATE)
 	@echo "Beam pipeline completed."
 
 # Testing operations
@@ -160,48 +160,48 @@ test: test-dev test-prod ## Run all tests (development and production)
 
 test-unit: ## Run unit tests only
 	@echo "Running unit tests..."
-	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec beam-runner python -m pytest /opt/beam/scripts/tests/ -m "unit" -v
+	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec beam-runner python -m pytest /opt/beam/src/tests/ -m "unit" -v
 	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec scio-runner bash -c "cd /app && sbt 'testOnly * -- -n Unit'"
 	@echo "Unit tests completed"
 
 test-integration: ## Run integration tests only
 	@echo "Running integration tests..."
-	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec beam-runner python -m pytest /opt/beam/scripts/tests/ -m "integration" -v
+	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec beam-runner python -m pytest /opt/beam/src/tests/ -m "integration" -v
 	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec scio-runner bash -c "cd /app && sbt 'testOnly * -- -n Integration'"
 	@echo "Integration tests completed"
 
 test-performance: ## Run performance tests
 	@echo "Running performance tests..."
-	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec beam-runner python /opt/beam/scripts/utils/run_performance_tests.py
+	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec beam-runner python /opt/beam/src/utils/run_performance_tests.py
 	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec scio-runner bash -c "cd /app && sbt 'testOnly * -- -n Performance'"
 	@echo "Performance tests completed"
 
 test-coverage: ## Run tests with coverage reporting
 	@echo "Running tests with coverage reporting..."
-	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec beam-runner python -m pytest /opt/beam/scripts/tests/ --cov=/opt/beam/scripts --cov-report=xml --cov-report=term
+	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec beam-runner python -m pytest /opt/beam/src/tests/ --cov=/opt/beam/scripts --cov-report=xml --cov-report=term
 	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec scio-runner bash -c "cd /app && sbt coverage test coverageReport"
 	@echo "Coverage tests completed"
 
 test-dev: test-unit ## Run development tests (faster, less comprehensive)
 	@echo "Running development tests..."
-	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec beam-runner python -m pytest /opt/beam/scripts/tests/ -m "not production and not performance" -v
+	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec beam-runner python -m pytest /opt/beam/src/tests/ -m "not production and not performance" -v
 	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec scio-runner bash -c "cd /app && sbt 'testOnly * -- -l Production -l Performance'"
 	@echo "Development database tests..."
-	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec beam-runner python /opt/beam/scripts/utils/test_utils.py --test-type db --test-size $(TEST_SIZE)
+	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec beam-runner python /opt/beam/src/utils/test_utils.py --test-type db --test-size $(TEST_SIZE)
 	@echo "Development Kafka tests..."
-	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec beam-runner python /opt/beam/scripts/utils/test_utils.py --test-type kafka --test-size $(TEST_SIZE)
+	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec beam-runner python /opt/beam/src/utils/test_utils.py --test-type kafka --test-size $(TEST_SIZE)
 	@echo "Development tests completed"
 
 test-prod: test-unit test-integration test-performance ## Run production tests (slower, more comprehensive)
 	@echo "Running production tests..."
-	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec beam-runner python -m pytest /opt/beam/scripts/tests/ -m "production" -v
+	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec beam-runner python -m pytest /opt/beam/src/tests/ -m "production" -v
 	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec scio-runner bash -c "cd /app && sbt 'testOnly * -- -n Production'"
 	@echo "Production database tests..."
-	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec beam-runner python /opt/beam/scripts/utils/test_utils.py --test-type db --test-size medium --production
+	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec beam-runner python /opt/beam/src/utils/test_utils.py --test-type db --test-size medium --production
 	@echo "Production Kafka tests..."
-	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec beam-runner python /opt/beam/scripts/utils/test_utils.py --test-type kafka --test-size medium --production
+	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec beam-runner python /opt/beam/src/utils/test_utils.py --test-type kafka --test-size medium --production
 	@echo "End-to-end pipeline validation..."
-	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec beam-runner python /opt/beam/scripts/utils/test_utils.py --test-type pipeline --production
+	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec beam-runner python /opt/beam/src/utils/test_utils.py --test-type pipeline --production
 	@echo "Production tests completed"
 
 exec-airflow: ## Open a shell in the Airflow container
@@ -240,7 +240,7 @@ lint: ## Run linters on Python code
 # Scio operations
 scio-pipeline:
 	@echo "Running Scio pipeline..."
-	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec -T scio-runner bash -c "cd /app && ./scripts/run_scio_pipeline.sh -p $(PIPELINE) -d $(DATE) -e $(ENV)"
+	$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec -T scio-runner bash -c "cd /app/src/scio && ./run_scio_pipeline.sh -p $(PIPELINE) -d $(DATE) -e $(ENV)"
 	@echo "Scio pipeline $(PIPELINE) executed for date $(DATE) in $(ENV) environment"
 
 # Scio project build

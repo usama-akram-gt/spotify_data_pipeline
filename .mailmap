@@ -1,0 +1,6 @@
+# This file maps commit authors to a unified identity
+# Format: Proper Name <proper@email.xx> <commit@email.xx>
+
+# Map all Claude commits to the main author
+usamaakram234@hotmail.com <usamaakram234@hotmail.com> Claude <noreply@anthropic.com>
+usamaakram234@hotmail.com <usamaakram234@hotmail.com> claude <noreply@anthropic.com>

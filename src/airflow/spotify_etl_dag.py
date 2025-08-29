@@ -24,7 +24,7 @@ from airflow.utils.dates import days_ago
 from airflow.models import Variable
 
 # Add scripts directory to path
-sys.path.append('/opt/airflow/scripts')
+sys.path.append('/opt/airflow/src')
 
 # Import our custom modules
 from ingestion.generate_fake_data import SpotifyDataGenerator
@@ -101,14 +101,14 @@ start_pipeline = BashOperator(
 # Task to generate data (in production, this would be a data ingestion task)
 generate_data = BashOperator(
     task_id='generate_data',
-    bash_command='echo "Running data generator script" && python /app/scripts/data_generator.py',
+    bash_command='echo "Running data generator script" && python /app/src/ingestion/data_generator.py',
     dag=dag,
 )
 
 # Task to run Scio pipeline (replaces deprecated Python Beam pipeline)
 run_scio_pipeline_main = BashOperator(
     task_id='run_scio_pipeline_main',
-    bash_command='echo "Running Scio pipeline" && cd /app/scio_pipelines && sbt "runMain com.spotify.pipeline.transforms.StreamingHistoryTransform {{ execution_date.strftime("%Y-%m-%d") }}"',
+    bash_command='echo "Running Scio pipeline" && cd /app/src/scio/scio_pipelines && sbt "runMain com.spotify.pipeline.transforms.StreamingHistoryTransform {{ execution_date.strftime("%Y-%m-%d") }}"',
     dag=dag,
 )
 

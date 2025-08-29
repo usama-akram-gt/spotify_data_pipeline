@@ -24,7 +24,7 @@ from airflow.utils.dates import days_ago
 from airflow.models import Variable
 
 # Add scripts directory to path
-sys.path.append('/opt/airflow/scripts')
+sys.path.append('/opt/airflow/src')
 
 # Database connection parameters
 DB_PARAMS = {
