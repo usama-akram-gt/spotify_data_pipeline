@@ -62,6 +62,13 @@ Thumbs.db
 *.key
 *.crt
 
+# Configuration files with sensitive data
+config/azure/
+**/application-*.conf
+**/application.conf
+terraform.tfvars
+terraform.tfvars.json
+
 # Documentation (keep only essential)
 *.docx
 ~$*
