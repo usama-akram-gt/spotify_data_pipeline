@@ -4,7 +4,6 @@
 
 # Environment variables
 -include .env
--include .env.azure
 export
 
 # Azure and Kubernetes variables

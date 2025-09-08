@@ -23,17 +23,14 @@ from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.utils.dates import days_ago
 from airflow.models import Variable
 
-# Add scripts directory to path
+# Add src directory to path
 sys.path.append('/opt/airflow/src')
 
-# Database connection parameters
-DB_PARAMS = {
-    'host': os.getenv('DB_HOST', 'postgres'),
-    'port': os.getenv('DB_PORT', '5432'),
-    'database': os.getenv('DB_NAME', 'spotify_data'),
-    'user': os.getenv('DB_USER', 'spotify_user'),
-    'password': os.getenv('DB_PASSWORD', 'spotify_password')
-}
+# Import configuration system
+from config import config, get_db_params
+
+# Database connection parameters using new config system
+DB_PARAMS = get_db_params()
 
 # Define default arguments
 default_args = {

@@ -23,21 +23,16 @@ from airflow.sensors.external_task import ExternalTaskSensor
 from airflow.utils.dates import days_ago
 from airflow.models import Variable
 
-# Add scripts directory to path
+# Add src directory to path
 sys.path.append('/opt/airflow/src')
 
-# Import our custom modules
+# Import configuration and custom modules
+from config import config, get_db_params
 from ingestion.generate_fake_data import SpotifyDataGenerator
 from transformation.batch_song_plays_processor import run_song_metrics_pipeline, run_daily_active_users_pipeline
 
-# Database connection parameters
-DB_PARAMS = {
-    'host': os.getenv('DB_HOST', 'postgres'),
-    'port': os.getenv('DB_PORT', '5432'),
-    'database': os.getenv('DB_NAME', 'spotify_data'),
-    'user': os.getenv('DB_USER', 'spotify_user'),
-    'password': os.getenv('DB_PASSWORD', 'spotify_password')
-}
+# Database connection parameters using new config system
+DB_PARAMS = get_db_params()
 
 # Define default arguments
 default_args = {

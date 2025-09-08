@@ -8,6 +8,7 @@ a real Spotify environment.
 """
 
 import os
+import sys
 import json
 import uuid
 import random
@@ -18,6 +19,10 @@ from dotenv import load_dotenv
 from faker import Faker
 from typing import Dict, List, Any, Tuple
 import argparse
+
+# Add src to path for config import
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config import config, get_db_params
 
 # Configure logging
 logging.basicConfig(
@@ -33,14 +38,8 @@ load_dotenv()
 fake = Faker()
 Faker.seed(42)  # For reproducibility
 
-# Database connection parameters
-DB_PARAMS = {
-    'host': os.getenv('DB_HOST', 'localhost'),
-    'port': os.getenv('DB_PORT', '5432'),
-    'database': os.getenv('DB_NAME', 'spotify_data'),
-    'user': os.getenv('DB_USER', 'spotify_user'),
-    'password': os.getenv('DB_PASSWORD', 'spotify_password')
-}
+# Database connection parameters using new config system
+DB_PARAMS = get_db_params()
 
 # Constants for data generation
 SUBSCRIPTION_TYPES = ['free', 'premium', 'family', 'student', 'duo']
