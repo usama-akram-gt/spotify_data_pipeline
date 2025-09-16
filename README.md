@@ -2,6 +2,10 @@
 
 A scalable data pipeline for processing Spotify streaming data with Azure/Kubernetes deployment support.
 
+## Architecture
+
+![Spotify Pipeline Architecture](spotify_pipeline_architecture.png)
+
 ## Features
 
 - **Data Processing**: Scala (Scio) pipeline for streaming history transformation
